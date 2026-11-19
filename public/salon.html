@@ -1,0 +1,529 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schnittpunkt – Salon-Bereich</title>
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        .salon-tools {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .salon-tools button {
+            margin: 0;
+        }
+
+        .salon-tools input {
+            width: auto;
+        }
+
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 15px;
+        }
+
+        .employee-column {
+            background: #f6f3ee;
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 0;
+        }
+
+        .appointment {
+            background: white;
+            border: 1px solid #e5dfd6;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 12px 0;
+            overflow-wrap: anywhere;
+        }
+
+        .appointment button,
+        .service-row button {
+            padding: 8px 12px;
+            margin: 6px 5px 0 0;
+        }
+
+        .service-row {
+            padding: 12px 0;
+            border-bottom: 1px solid #e5dfd6;
+        }
+
+        .muted {
+            color: #746d64;
+        }
+
+        .success {
+            color: #236a43;
+        }
+
+        .error {
+            color: #b13b35;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .service-form {
+            margin-top: 20px;
+        }
+
+        @media (max-width: 700px) {
+            .calendar {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Schnittpunkt</h1>
+        <p>Salon-Bereich – Terminverwaltung</p>
+    </header>
+
+    <main>
+        <section id="loginSection" class="booking-card">
+            <h2>Salon-Anmeldung</h2>
+            <p>Bitte geben Sie das Salon-Passwort ein.</p>
+
+            <form id="loginForm">
+                <label for="password">Passwort</label>
+                <input
+                    id="password"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                >
+                <button type="submit">Anmelden</button>
+            </form>
+        </section>
+
+        <div id="dashboard" class="hidden">
+            <section class="booking-card">
+                <div class="salon-tools">
+                    <h2>Terminübersicht</h2>
+                    <button id="logoutBtn" type="button">
+                        Abmelden
+                    </button>
+                </div>
+
+                <div class="salon-tools">
+                    <button id="prevDay" type="button">
+                        ← Vorheriger Tag
+                    </button>
+
+                    <input id="salonDate" type="date">
+
+                    <button id="nextDay" type="button">
+                        Nächster Tag →
+                    </button>
+                </div>
+
+                <div id="calendar" class="calendar"></div>
+            </section>
+
+            <section class="booking-card cancellation-card">
+                <h2>Leistungen verwalten</h2>
+
+                <div id="serviceList"></div>
+
+                <h3>Neue Leistung anlegen</h3>
+
+                <form id="serviceForm" class="service-form">
+                    <label for="serviceName">Name</label>
+                    <input id="serviceName" required maxlength="100">
+
+                    <label for="serviceDuration">
+                        Dauer in Minuten
+                    </label>
+                    <input
+                        id="serviceDuration"
+                        type="number"
+                        min="1"
+                        max="480"
+                        required
+                    >
+
+                    <label for="servicePrice">
+                        Preis in Euro
+                    </label>
+                    <input
+                        id="servicePrice"
+                        type="number"
+                        min="0"
+                        max="999999.99"
+                        step="0.01"
+                        required
+                    >
+
+                    <button type="submit">
+                        Leistung speichern
+                    </button>
+                </form>
+            </section>
+        </div>
+
+        <p id="salonMessage" role="status" aria-live="polite"></p>
+
+        <p>
+            <a href="/">Zurück zur Buchungsseite</a>
+        </p>
+    </main>
+
+    <script>
+        const loginSection = document.getElementById('loginSection');
+        const dashboard = document.getElementById('dashboard');
+        const salonMessage = document.getElementById('salonMessage');
+        const salonDate = document.getElementById('salonDate');
+        const calendar = document.getElementById('calendar');
+        const serviceList = document.getElementById('serviceList');
+
+        function showMessage(text, type = '') {
+            salonMessage.textContent = text;
+            salonMessage.className = type;
+        }
+
+        function dateString(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        }
+
+        async function request(url, options = {}) {
+            const response = await fetch(url, options);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Ein Fehler ist aufgetreten.');
+            }
+
+            return data;
+        }
+
+        function jsonOptions(method, body) {
+            return {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            };
+        }
+
+        function element(tag, text, className = '') {
+            const node = document.createElement(tag);
+            node.textContent = text;
+            if (className) node.className = className;
+            return node;
+        }
+
+        function makeButton(text, handler) {
+            const button = element('button', text);
+            button.type = 'button';
+            button.addEventListener('click', handler);
+            return button;
+        }
+
+        function loggedIn(value) {
+            loginSection.classList.toggle('hidden', value);
+            dashboard.classList.toggle('hidden', !value);
+        }
+
+        // Anmeldung
+        document.getElementById('loginForm')
+            .addEventListener('submit', async event => {
+                event.preventDefault();
+
+                const password =
+                    document.getElementById('password').value;
+
+                try {
+                    await request(
+                        '/api/salon/login',
+                        jsonOptions('POST', { password })
+                    );
+
+                    document.getElementById('password').value = '';
+                    loggedIn(true);
+                    showMessage('Anmeldung erfolgreich.', 'success');
+
+                    await loadDashboard();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            });
+
+        // Abmeldung
+        document.getElementById('logoutBtn')
+            .addEventListener('click', async () => {
+                try {
+                    await request('/api/salon/logout', {
+                        method: 'POST'
+                    });
+
+                    loggedIn(false);
+                    calendar.replaceChildren();
+                    serviceList.replaceChildren();
+                    showMessage('Abgemeldet.', 'success');
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            });
+
+        // Termine für einen Tag
+        async function loadAppointments() {
+            calendar.replaceChildren();
+
+            try {
+                const [appointments, employees] = await Promise.all([
+                    request(
+                        `/api/salon/termine?datum=${encodeURIComponent(salonDate.value)}`
+                    ),
+                    request('/api/mitarbeiter')
+                ]);
+
+                for (const employee of employees) {
+                    const column = element(
+                        'div',
+                        '',
+                        'employee-column'
+                    );
+
+                    column.appendChild(
+                        element('h3', employee.name)
+                    );
+
+                    const ownAppointments = appointments.filter(
+                        item => item.mitarbeiter_id === employee.id
+                    );
+
+                    if (ownAppointments.length === 0) {
+                        column.appendChild(
+                            element('p', 'Keine Termine', 'muted')
+                        );
+                    }
+
+                    for (const appointment of ownAppointments) {
+                        const card = element('div', '', 'appointment');
+
+                        card.appendChild(element(
+                            'strong',
+                            `${appointment.zeit}–${appointment.ende}`
+                        ));
+
+                        card.appendChild(element(
+                            'p',
+                            appointment.kunde
+                        ));
+
+                        card.appendChild(element(
+                            'p',
+                            appointment.leistung
+                        ));
+
+                        card.appendChild(element(
+                            'p',
+                            `Telefon: ${appointment.telefon}`
+                        ));
+
+                        card.appendChild(element(
+                            'p',
+                            `Status: ${appointment.status}`,
+                            'muted'
+                        ));
+
+                        if (appointment.status === 'gebucht') {
+                            card.appendChild(makeButton(
+                                'Erledigt',
+                                () => updateStatus(
+                                    appointment.id,
+                                    'erledigt'
+                                )
+                            ));
+
+                            card.appendChild(makeButton(
+                                'Stornieren',
+                                () => updateStatus(
+                                    appointment.id,
+                                    'storniert'
+                                )
+                            ));
+                        }
+
+                        column.appendChild(card);
+                    }
+
+                    calendar.appendChild(column);
+                }
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // Status ändern
+        async function updateStatus(id, status) {
+            const question = status === 'storniert'
+                ? 'Diesen Termin wirklich stornieren?'
+                : 'Diesen Termin als erledigt markieren?';
+
+            if (!confirm(question)) return;
+
+            try {
+                await request(
+                    `/api/salon/termine/${id}/status`,
+                    jsonOptions('PATCH', { status })
+                );
+
+                showMessage('Termin aktualisiert.', 'success');
+                await loadAppointments();
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // Durch die Tage blättern
+        function changeDay(amount) {
+            const date = new Date(`${salonDate.value}T12:00:00`);
+            date.setDate(date.getDate() + amount);
+            salonDate.value = dateString(date);
+            loadAppointments();
+        }
+
+        document.getElementById('prevDay')
+            .addEventListener('click', () => changeDay(-1));
+
+        document.getElementById('nextDay')
+            .addEventListener('click', () => changeDay(1));
+
+        salonDate.addEventListener('change', loadAppointments);
+
+        // Leistungen laden
+        async function loadServices() {
+            serviceList.replaceChildren();
+
+            try {
+                const services = await request(
+                    '/api/salon/leistungen'
+                );
+
+                for (const service of services) {
+                    const row = element('div', '', 'service-row');
+
+                    row.appendChild(element(
+                        'strong',
+                        service.name
+                    ));
+
+                    row.appendChild(element(
+                        'p',
+                        `${service.dauer_minuten} Minuten – ${Number(service.preis).toFixed(2)} €`
+                    ));
+
+                    row.appendChild(makeButton(
+                        'Bearbeiten',
+                        () => editService(service)
+                    ));
+
+                    serviceList.appendChild(row);
+                }
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // Leistung bearbeiten
+        async function editService(service) {
+            const name = prompt('Name:', service.name);
+            if (name === null) return;
+
+            const duration = prompt(
+                'Dauer in Minuten:',
+                service.dauer_minuten
+            );
+            if (duration === null) return;
+
+            const price = prompt(
+                'Preis in Euro (z. B. 42.00):',
+                service.preis
+            );
+            if (price === null) return;
+
+            try {
+                await request(
+                    `/api/salon/leistungen/${service.id}`,
+                    jsonOptions('PUT', {
+                        name,
+                        dauer_minuten: Number(duration),
+                        preis: price.trim().replace(',', '.')
+                    })
+                );
+
+                showMessage('Leistung aktualisiert.', 'success');
+                await loadServices();
+
+            } catch (error) {
+                showMessage(error.message, 'error');
+            }
+        }
+
+        // Neue Leistung anlegen
+        document.getElementById('serviceForm')
+            .addEventListener('submit', async event => {
+                event.preventDefault();
+
+                const data = {
+                    name: document.getElementById('serviceName').value,
+                    dauer_minuten: Number(
+                        document.getElementById('serviceDuration').value
+                    ),
+                    preis: document.getElementById('servicePrice').value
+                };
+
+                try {
+                    await request(
+                        '/api/salon/leistungen',
+                        jsonOptions('POST', data)
+                    );
+
+                    event.target.reset();
+                    showMessage('Leistung angelegt.', 'success');
+                    await loadServices();
+
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            });
+
+        async function loadDashboard() {
+            await Promise.all([
+                loadAppointments(),
+                loadServices()
+            ]);
+        }
+
+        // Beim Öffnen prüfen, ob die Sitzung noch gültig ist
+        async function start() {
+            salonDate.value = dateString(new Date());
+
+            try {
+                await request('/api/salon/session');
+                loggedIn(true);
+                await loadDashboard();
+            } catch (error) {
+                loggedIn(false);
+            }
+        }
+
+        start();
+    </script>
+</body>
+</html>

@@ -307,6 +307,7 @@ app.get('/api/zeiten', async (req, res) => {
 app.use('/api/termine', require('./bookingRouter'));
 
 app.use('/api/stornieren', require('./cancelRouter'));
+app.use('/api/salon', require('./salonRouter'));
 
 app.listen(PORT, () => {
     console.log(

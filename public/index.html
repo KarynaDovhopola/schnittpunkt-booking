@@ -1,0 +1,91 @@
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schnittpunkt – Online-Terminbuchung</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <header>
+        <h1>Schnittpunkt</h1>
+        <p>Ihr Friseursalon – einfach online buchen</p>
+    </header>
+
+    <main>
+        <section class="booking-card">
+            <h2>Termin buchen</h2>
+
+            <form id="bookingForm">
+                <label for="leistung">Leistung</label>
+                <select id="leistung" required>
+                    <option value="">Bitte auswählen</option>
+                </select>
+
+                <label for="mitarbeiter">Mitarbeiter</label>
+                <select id="mitarbeiter" required>
+                    <option value="egal">Egal – wer frei ist</option>
+                </select>
+
+                <label for="datum">Datum</label>
+                <input type="date" id="datum" required>
+
+                <label for="zeit">Uhrzeit</label>
+                <select id="zeit" required>
+                    <option value="">Bitte zuerst Datum wählen</option>
+                </select>
+
+                <label for="name">Name</label>
+                <input type="text" id="name" required>
+
+                <label for="telefon">Telefon</label>
+                <input type="tel" id="telefon" required>
+
+                <label for="email">E-Mail</label>
+                <input type="email" id="email" required>
+
+                <button type="submit">Termin buchen</button>
+            </form>
+
+            <p id="message" role="status" aria-live="polite"></p>
+        </section>
+        
+        
+<section class="booking-card cancellation-card">
+    <h2>Termin stornieren</h2>
+
+    <p>
+        Sie möchten Ihren Termin absagen?
+        Geben Sie Ihren Stornocode ein.
+    </p>
+
+    <form id="cancelForm">
+        <label for="stornocode">Stornocode</label>
+
+        <input
+            type="text"
+            id="stornocode"
+            placeholder="Stornocode eingeben"
+            autocomplete="off"
+            required
+        >
+
+        <button type="submit">
+            Termin stornieren
+        </button>
+    </form>
+
+    <p
+        id="cancelMessage"
+        role="status"
+        aria-live="polite"
+    ></p>
+</section>
+
+
+
+    </main>
+</body>
+</html>

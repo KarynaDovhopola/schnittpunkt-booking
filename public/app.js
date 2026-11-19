@@ -7,6 +7,10 @@ const datum = document.getElementById('datum');
 const zeit = document.getElementById('zeit');
 const message = document.getElementById('message');
 
+// ========================================
+// HILFSFUNKTIONEN
+// ========================================
+
 function showMessage(text, type = '') {
     message.textContent = text;
     message.className = type;
@@ -17,7 +21,9 @@ async function apiRequest(url, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.error || 'Ein Fehler ist aufgetreten.');
+        throw new Error(
+            data.error || 'Ein Fehler ist aufgetreten.'
+        );
     }
 
     return data;
@@ -41,13 +47,20 @@ function localDateString(date) {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-// Leistungen aus Datenbank laden
+// ========================================
+// LEISTUNGEN LADEN
+// ========================================
+
 async function loadServices() {
     try {
         const services = await apiRequest('/api/leistungen');
 
         leistung.innerHTML = '';
-        addOption(leistung, '', 'Bitte Leistung auswählen');
+        addOption(
+            leistung,
+            '',
+            'Bitte Leistung auswählen'
+        );
 
         services.forEach(service => {
             addOption(
@@ -62,10 +75,18 @@ async function loadServices() {
     }
 }
 
-// Passende Mitarbeiter laden
+// ========================================
+// MITARBEITER LADEN
+// ========================================
+
 async function loadEmployees() {
     mitarbeiter.innerHTML = '';
-    addOption(mitarbeiter, 'egal', 'Egal – wer frei ist');
+
+    addOption(
+        mitarbeiter,
+        'egal',
+        'Egal – wer frei ist'
+    );
 
     resetTimes();
 
@@ -79,7 +100,11 @@ async function loadEmployees() {
         );
 
         employees.forEach(employee => {
-            addOption(mitarbeiter, employee.id, employee.name);
+            addOption(
+                mitarbeiter,
+                employee.id,
+                employee.name
+            );
         });
 
     } catch (error) {
@@ -87,7 +112,10 @@ async function loadEmployees() {
     }
 }
 
-// Freie Uhrzeiten laden
+// ========================================
+// FREIE ZEITEN LADEN
+// ========================================
+
 async function loadTimes() {
     resetTimes();
     showMessage('');
@@ -124,24 +152,45 @@ async function loadTimes() {
     }
 }
 
-// Termin buchen
+// ========================================
+// TERMIN BUCHEN
+// ========================================
+
 form.addEventListener('submit', async event => {
     event.preventDefault();
+
     showMessage('');
 
     const booking = {
-        name: document.getElementById('name').value.trim(),
-        telefon: document.getElementById('telefon').value.trim(),
-        email: document.getElementById('email').value.trim(),
+        name: document
+            .getElementById('name')
+            .value
+            .trim(),
+
+        telefon: document
+            .getElementById('telefon')
+            .value
+            .trim(),
+
+        email: document
+            .getElementById('email')
+            .value
+            .trim(),
+
         leistungId: Number(leistung.value),
+
         mitarbeiterId: mitarbeiter.value === 'egal'
             ? 'egal'
             : Number(mitarbeiter.value),
+
         datum: datum.value,
         zeit: zeit.value
     };
 
-    const submitButton = form.querySelector('button[type="submit"]');
+    const submitButton = form.querySelector(
+        'button[type="submit"]'
+    );
+
     submitButton.disabled = true;
 
     try {
@@ -156,7 +205,8 @@ form.addEventListener('submit', async event => {
         showMessage(
             `Termin erfolgreich gebucht! ` +
             `Mitarbeiter: ${result.mitarbeiter}. ` +
-            `Datum: ${result.datum}, Uhrzeit: ${result.zeit}. ` +
+            `Datum: ${result.datum}, ` +
+            `Uhrzeit: ${result.zeit}. ` +
             `Stornocode: ${result.stornocode}. ` +
             `Bitte diesen Code sicher aufbewahren.`,
             'success'
@@ -166,42 +216,68 @@ form.addEventListener('submit', async event => {
         resetTimes();
 
     } catch (error) {
-        showMessage(error.message, 'error');
-        await loadTimes();
+
+        // Fehler anzeigen, ohne die Uhrzeit zurückzusetzen
+        console.error('Buchungsfehler:', error);
+
+        showMessage(
+            error.message,
+            'error'
+        );
 
     } finally {
         submitButton.disabled = false;
     }
 });
 
+// ========================================
+// AUSWAHL ÄNDERN
+// ========================================
+
 leistung.addEventListener('change', async () => {
     await loadEmployees();
     await loadTimes();
 });
 
-mitarbeiter.addEventListener('change', loadTimes);
-datum.addEventListener('change', loadTimes);
+mitarbeiter.addEventListener(
+    'change',
+    loadTimes
+);
 
-// Start
+datum.addEventListener(
+    'change',
+    loadTimes
+);
+
+// ========================================
+// DATUM BEGRENZEN
+// ========================================
+
 const today = new Date();
+
 datum.min = localDateString(today);
 
 const maxDate = new Date(today);
 maxDate.setMonth(maxDate.getMonth() + 3);
+
 datum.max = localDateString(maxDate);
 
+// Leistungen beim Start laden
 loadServices();
 
+// ========================================
+// TERMIN STORNIEREN
+// ========================================
 
+const cancelForm = document.getElementById(
+    'cancelForm'
+);
 
- // ========================================
- // TERMIN STORNIEREN
- // ========================================
+const cancelMessage = document.getElementById(
+    'cancelMessage'
+);
 
-const cancelForm = document.getElementById('cancelForm');
-const cancelMessage = document.getElementById('cancelMessage');
-
-cancelForm.addEventListener('submit', async (event) => {
+cancelForm.addEventListener('submit', async event => {
     event.preventDefault();
 
     cancelMessage.textContent = '';
@@ -212,17 +288,23 @@ cancelForm.addEventListener('submit', async (event) => {
         .value
         .trim();
 
-    const button = cancelForm.querySelector('button');
+    const button = cancelForm.querySelector(
+        'button[type="submit"]'
+    );
+
     button.disabled = true;
 
     try {
-        const result = await apiRequest('/api/stornieren', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ stornocode })
-        });
+        const result = await apiRequest(
+            '/api/stornieren',
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ stornocode })
+            }
+        );
 
         cancelMessage.textContent = result.message;
         cancelMessage.className = 'success';
@@ -237,3 +319,4 @@ cancelForm.addEventListener('submit', async (event) => {
         button.disabled = false;
     }
 });
+
